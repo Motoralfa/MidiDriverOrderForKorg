@@ -10,6 +10,11 @@ If you have a large synth setup with multiple midi devices from other manufactur
 Over the years a number of workarounds have been published that involve driver removall/reinstallation and registry tinkering. 
 This application is designed to simplify this process by allowing reordering of the midi devices using a User Interface.
 
+
+## Disclaimer
+**This application modifies the Windows registry. Use it at your own risk. I will not be held responsible if damage results from using this tool.**
+
+
 ## Usage 
 1) Shutdown any running midi applications (DAWs, MIDI-Ox, etc)
 2) Run the application. The application will ask for elevated Windows privilages. This is necessary as the app will manipulate the Windows registry.
