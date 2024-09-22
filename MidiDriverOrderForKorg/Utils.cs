@@ -18,8 +18,8 @@ namespace MidiDriverOrderForKorg
         public const int MidiAliasMaxIdx = 9;
 
         // We'll use RegistryView to control WOW6432Node node
-        private const string StaleAliases = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Drivers32";
-        //private const string StaleAliases32bit = @"SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Drivers32"; 
+        private const string Drivers32AliasKey = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Drivers32";
+        //private const string Drivers32AliasKeyWOW = @"SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Drivers32"; 
 
         public static ICollection<RegistryEntry> SortEntries(ICollection<RegistryEntry> entries)
         {
@@ -34,12 +34,12 @@ namespace MidiDriverOrderForKorg
                     continue;
                 }
                 if (!alias.StartsWith("midi"))
-                    throw new Exception($"invalid: not starting with midi: {alias}");
+                    throw new Exception($"Invalid midi alias [{alias}]");
                 var idxStr = alias.Substring(4);
                 if (!int.TryParse(idxStr, out var idx))
-                    throw new Exception($"invalid: unparsable idx {idxStr}");
+                    throw new Exception($"Invalid midi alias number [{alias}]");
                 if (sorted.ContainsKey(idx))
-                    throw new Exception($"invalid: dupe alias {alias}");
+                    throw new Exception($"Dupe alias [{alias}]");
                 sorted.Add(idx, entry);
             }
 
@@ -50,12 +50,12 @@ namespace MidiDriverOrderForKorg
                 if (d.Key != expected)
                 {
                     if (d.Key < expected)
-                        throw new Exception($"invalid: idx below bounds {d.Key} - Expected {expected}");
+                        throw new Exception($"Alias number below bounds {d.Key} - Expected {expected}");
                     var deltaToFill = d.Key - expected;
-                    if (entriesRemain.Count < deltaToFill)
-                        throw new Exception($"invalid: Not enough unassigned device to fill alias gaps");
                     for (var i = 0; i < deltaToFill; i++)
                     {
+                        if (entriesRemain.Count == 0)
+                            break;
                         res.AddLast(entriesRemain.First.Value);
                         entriesRemain.RemoveFirst();
                     }
@@ -80,7 +80,7 @@ namespace MidiDriverOrderForKorg
             using (var mainKey = Registry.LocalMachine.OpenSubKey(regKey, true))
             {
                 if (mainKey == null)
-                    throw new Exception($"Failed to open key {entry.FullKey} for writing. \n\nDevice:[{entry.DeviceName}]\nKey: {regKey}");
+                    throw new Exception($"Failed to open key {entry.FullKey} for writing.\n\nDevice:[{entry.DeviceName}]\nKey: {regKey}");
                 if (entryNumber <= MidiAliasMaxIdx)
                     mainKey.SetValue("Alias", $"midi{entryNumber}");
                 else
@@ -88,13 +88,13 @@ namespace MidiDriverOrderForKorg
             }
         }
 
-        public static void DeleteStaleAliases()
+        public static void UpdateDrivers32Aliases(ICollection<RegistryEntry> entries)
         {
-            DeleteStaleAliasesFrom(StaleAliases, RegistryView.Registry64);
-            DeleteStaleAliasesFrom(StaleAliases, RegistryView.Registry32);
+            UpdateDrivers32Aliases(Drivers32AliasKey, RegistryView.Registry64, entries);
+            UpdateDrivers32Aliases(Drivers32AliasKey, RegistryView.Registry32, entries);
         }
 
-        private static void DeleteStaleAliasesFrom(string regKey, RegistryView regView)
+        private static void UpdateDrivers32Aliases(string regKey, RegistryView regView, ICollection<RegistryEntry> entries)
         {
             using (var localMachine = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, regView))
             {
@@ -102,9 +102,25 @@ namespace MidiDriverOrderForKorg
                 {
                     if (mainKey == null)
                         throw new Exception($"Failed to open key[{regKey}], View[{regView}] for writing");
-                    for (var i = 0; i <= MidiAliasMaxIdx; i++)
+                    var names = mainKey.GetValueNames();
+                    foreach (var name in names)
                     {
-                        mainKey.DeleteValue($"midi{i}", false);
+                        // midi[0-9] only - Check thoroughly to avoid wiping out "midimapper"
+                        if (name.Length<5 || !name.StartsWith("midi"))
+                            continue;
+                        var ch = name[4];
+                        if (ch < '0' || ch > '9')
+                            continue;
+                        mainKey.DeleteValue(name, false);
+                    }
+
+                    // Stamp midi aliases to create visibility for the Korg driver uninstall utility
+                    var idx = 0;
+                    foreach (var entry in entries)
+                    {
+                        if (idx > MidiAliasMaxIdx)
+                            break;
+                        mainKey.SetValue($"midi{idx++}", entry.Driver);
                     }
                 }
             }
@@ -189,12 +205,14 @@ namespace MidiDriverOrderForKorg
                                     var driverDesc = driverEntryKey.GetValue("DriverDesc")?.ToString();
                                     var alias = midiEntrySubKey.GetValue("Alias")?.ToString();
                                     var matchingDeviceId = driverEntryKey.GetValue("MatchingDeviceId")?.ToString();
+                                    var driver = midiEntrySubKey.GetValue("Driver")?.ToString();
                                     var registryEntry = new RegistryEntry()
                                     {
                                         DeviceName = driverDesc,
                                         FullKey = midiEntrySubKey.ToString(),
                                         Alias = alias,
-                                        IsKorg = matchingDeviceId != null &&  matchingDeviceId.ToLower().Contains(@"\vid_0944&")
+                                        IsKorg = matchingDeviceId != null &&  matchingDeviceId.ToLower().Contains(@"\vid_0944&"),
+                                        Driver = driver,
                                     };
                                     if (usbEntries.TryGetValue(lookupUsbKey, out var usbEntry))
                                     {

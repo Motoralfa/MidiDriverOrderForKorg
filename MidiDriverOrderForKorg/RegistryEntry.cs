@@ -12,6 +12,7 @@ namespace MidiDriverOrderForKorg
         public string Alias { get; set; }
         public string DeviceName { get; set; }
         public bool IsKorg { get; set; }
+        public string Driver { get; set; }
     }
 
 }

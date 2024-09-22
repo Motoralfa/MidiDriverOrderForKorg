@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Drawing;
 using System.Windows.Forms;
 
@@ -46,13 +47,14 @@ namespace MidiDriverOrderForKorg
                 return;
             }
 
+            string errorMsg = null;
             try
             {
                 entries = Utils.SortEntries(entries);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($@"Failed to order midi driver entries. Existing configuration has consistency issues \n\n Error: {ex.Message}");
+                errorMsg = ex.Message;
             }
 
 
@@ -73,6 +75,11 @@ namespace MidiDriverOrderForKorg
             }
             InvalidateControlsForSelection();
             _tsMoveKorg.Enabled = _miMoveKorgToTop.Enabled = hasKorg;
+
+            if (errorMsg!=null)
+            {
+                MessageBox.Show($"Current ordering of midi drivers is invalid.\nError: {errorMsg}\n\nPlease fix the ordering", @"Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void UpdateListItemDetails(ListViewItem lv)
@@ -134,27 +141,29 @@ namespace MidiDriverOrderForKorg
             var idx = Utils.MidiAliasLowIdx;
             try
             {
+                var entriesToWrite = new List<RegistryEntry>(_listView.Items.Count);
                 foreach (ListViewItem item in _listView.Items)
                 {
                     var entry = (RegistryEntry)item.Tag;
+                    entriesToWrite.Add(entry);
                     try
                     {
                         Utils.WriteEntry(entry, idx++);
                     }
                     catch (Exception e)
                     {
-                        MessageBox.Show($@"Error: {e.Message}\n\nAborting...", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show($"Error: {e.Message}\n\nAborting...", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return;
                     }
                 }
 
                 try
                 {
-                    Utils.DeleteStaleAliases();
+                    Utils.UpdateDrivers32Aliases(entriesToWrite);
                 }
                 catch (Exception e)
                 {
-                    MessageBox.Show($@"Failed to delete stale aliases: {e.Message}", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show($@"Failed to update Drivers32 aliases. Error={e.Message}", @"Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             finally
