@@ -46,12 +46,12 @@ namespace MidiDriverOrderForKorg.Tests
             var idx = 0;
             var outData = new List<RegistryEntry>(Utils.SortEntries(inputData));
             Assert.AreEqual(inputData.Count, outData.Count);
+            Assert.AreEqual("DEV1", outData[idx++].DeviceName);
             Assert.AreEqual("DEV3", outData[idx++].DeviceName);
             Assert.AreEqual("DEV5", outData[idx++].DeviceName);
             Assert.AreEqual("DEV2", outData[idx++].DeviceName);
-            Assert.AreEqual("DEV1", outData[idx++].DeviceName);
-            Assert.AreEqual("DEV7", outData[idx++].DeviceName);
             Assert.AreEqual("DEV4", outData[idx++].DeviceName);
+            Assert.AreEqual("DEV7", outData[idx++].DeviceName);
             Assert.AreEqual("DEV6", outData[idx++].DeviceName);
             Assert.AreEqual("DEV8", outData[idx++].DeviceName);
             Assert.AreEqual(outData.Count, idx);
